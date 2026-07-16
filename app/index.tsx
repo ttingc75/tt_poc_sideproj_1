@@ -1,4 +1,4 @@
-import { Link, useRouter } from 'expo-router';
+import { Link, Redirect, useRouter } from 'expo-router';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SubscriptionCard } from '../src/components/SubscriptionCard';
@@ -11,9 +11,14 @@ export default function Dashboard() {
   const subscriptions = useSubscriptionStore((s) => s.subscriptions);
   const isLoaded = useSubscriptionStore((s) => s.isLoaded);
   const isPro = useSubscriptionStore((s) => s.isPro);
+  const hasOnboarded = useSubscriptionStore((s) => s.hasOnboarded);
 
   const monthlyTotal = totalMonthlySpend(subscriptions);
   const yearlyTotal = totalYearlySpend(subscriptions);
+
+  if (isLoaded && !hasOnboarded) {
+    return <Redirect href="/onboarding" />;
+  }
 
   return (
     <View style={styles.container}>

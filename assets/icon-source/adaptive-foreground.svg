@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="sweep" cx="256" cy="256" r="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA" stop-opacity="0.65" />
+      <stop offset="100%" stop-color="#60A5FA" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glow" cx="157.33" cy="220.1" r="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <path d="M256,256 L396.96,204.7 A150,150 0 0,1 352.42,370.9 Z" fill="url(#sweep)" />
+
+  <circle cx="256" cy="256" r="70" fill="none" stroke="#2563EB" stroke-width="4" opacity="0.55" />
+  <circle cx="256" cy="256" r="105" fill="none" stroke="#2563EB" stroke-width="4" opacity="0.4" />
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#2563EB" stroke-width="4" opacity="0.25" />
+
+  <circle cx="157.33" cy="220.1" r="20" fill="url(#glow)" />
+  <circle cx="157.33" cy="220.1" r="10" fill="#38BDF8" />
+
+  <circle cx="256" cy="256" r="6" fill="#E0F2FE" />
+</svg>

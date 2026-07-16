@@ -1,10 +1,14 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type { BillingCycle, NewSubscription } from '../domain/subscription';
-
-const CYCLES: BillingCycle[] = ['weekly', 'monthly', 'yearly'];
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import {
+  BILLING_CYCLES,
+  CURRENCY_CODE_RE,
+  toISODateString,
+  type BillingCycle,
+  type NewSubscription,
+} from '../domain/subscription';
 
 interface Props {
   initialValue?: NewSubscription;
@@ -17,7 +21,10 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
   const [amount, setAmount] = useState(initialValue ? String(initialValue.amount) : '');
   const [currency, setCurrency] = useState(initialValue?.currency ?? 'USD');
   const [cycle, setCycle] = useState<BillingCycle>(initialValue?.cycle ?? 'monthly');
-  const [nextBillingDate, setNextBillingDate] = useState(initialValue?.nextBillingDate ?? '');
+  const [nextBillingDate, setNextBillingDate] = useState<Date | null>(
+    initialValue ? new Date(`${initialValue.nextBillingDate}T00:00:00`) : null
+  );
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [category, setCategory] = useState(initialValue?.category ?? '');
   const [notes, setNotes] = useState(initialValue?.notes ?? '');
   const [splitCount, setSplitCount] = useState(
@@ -28,6 +35,8 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
   function handleSubmit() {
     const parsedAmount = Number(amount);
     const parsedSplitCount = Math.round(Number(splitCount));
+    const trimmedCurrency = currency.trim().toUpperCase() || 'USD';
+
     if (!name.trim()) {
       setError('Name is required.');
       return;
@@ -36,8 +45,12 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
       setError('Amount must be a positive number.');
       return;
     }
-    if (!ISO_DATE_RE.test(nextBillingDate)) {
-      setError('Next billing date must be in YYYY-MM-DD format.');
+    if (!CURRENCY_CODE_RE.test(trimmedCurrency)) {
+      setError('Currency must be a 3-letter code, e.g. USD.');
+      return;
+    }
+    if (!nextBillingDate) {
+      setError('Pick a next billing date.');
       return;
     }
     if (!Number.isFinite(parsedSplitCount) || parsedSplitCount < 1) {
@@ -48,9 +61,9 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
     onSubmit({
       name: name.trim(),
       amount: parsedAmount,
-      currency: currency.trim() || 'USD',
+      currency: trimmedCurrency,
       cycle,
-      nextBillingDate,
+      nextBillingDate: toISODateString(nextBillingDate),
       category: category.trim() || null,
       notes: notes.trim() || null,
       splitCount: parsedSplitCount,
@@ -87,7 +100,7 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
 
       <Text style={styles.label}>Billing cycle</Text>
       <View style={styles.cycleRow}>
-        {CYCLES.map((c) => (
+        {BILLING_CYCLES.map((c) => (
           <Pressable
             key={c}
             style={[styles.cyclePill, cycle === c && styles.cyclePillActive]}
@@ -101,12 +114,31 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
       </View>
 
       <Text style={styles.label}>Next billing date</Text>
-      <TextInput
-        style={styles.input}
-        value={nextBillingDate}
-        onChangeText={setNextBillingDate}
-        placeholder="2026-08-01"
-      />
+      <Pressable style={styles.input} onPress={() => setShowDatePicker(true)}>
+        <Text style={nextBillingDate ? styles.dateText : styles.dateTextPlaceholder}>
+          {nextBillingDate ? toISODateString(nextBillingDate) : 'Select a date'}
+        </Text>
+      </Pressable>
+      {showDatePicker && (
+        <>
+          <DateTimePicker
+            value={nextBillingDate ?? new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={(_event, selectedDate) => {
+              setShowDatePicker(Platform.OS === 'ios');
+              if (selectedDate) {
+                setNextBillingDate(selectedDate);
+              }
+            }}
+          />
+          {Platform.OS === 'ios' && (
+            <Pressable style={styles.doneButton} onPress={() => setShowDatePicker(false)}>
+              <Text style={styles.doneButtonText}>Done</Text>
+            </Pressable>
+          )}
+        </>
+      )}
 
       <Text style={styles.label}>Split with (people, including you)</Text>
       <TextInput
@@ -161,6 +193,22 @@ const styles = StyleSheet.create({
   multiline: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  dateText: {
+    fontSize: 15,
+    color: '#111827',
+  },
+  dateTextPlaceholder: {
+    fontSize: 15,
+    color: '#9CA3AF',
+  },
+  doneButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  doneButtonText: {
+    color: '#2563EB',
+    fontWeight: '600',
   },
   row: {
     flexDirection: 'row',

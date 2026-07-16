@@ -66,6 +66,14 @@ export function spendByCategory(subscriptions: Subscription[]): CategorySpend[] 
     .sort((a, b) => b.monthlyTotal - a.monthlyTotal);
 }
 
+/** Formats a Date using its local calendar day (not UTC), matching the "YYYY-MM-DD" storage format. */
+export function toISODateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** Whole days between today and an ISO date string; negative if the date is in the past. */
 export function daysUntil(isoDate: string, now: Date = new Date()): number {
   const target = new Date(`${isoDate}T00:00:00`);
@@ -118,6 +126,102 @@ export function toCSV(subscriptions: Subscription[]): string {
     }).join(',')
   );
   return [CSV_HEADERS.join(','), ...rows].join('\n');
+}
+
+export const BILLING_CYCLES: BillingCycle[] = ['weekly', 'monthly', 'yearly'];
+/** 3-letter currency code, e.g. "USD" — checked for shape only, not against a real ISO 4217 list. */
+export const CURRENCY_CODE_RE = /^[A-Za-z]{3}$/;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Splits a single CSV line into fields, honoring double-quoted fields with escaped `""`. Does not support fields with embedded newlines. */
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ',') {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+export interface ParsedSubscriptionsCSV {
+  valid: NewSubscription[];
+  errorCount: number;
+}
+
+/** Parses a CSV in the shape produced by {@link toCSV}. Rows missing required fields or failing validation are dropped and counted in errorCount. */
+export function parseSubscriptionsCSV(csvText: string): ParsedSubscriptionsCSV {
+  const lines = csvText.split(/\r\n|\n|\r/).filter((line) => line.trim().length > 0);
+  if (lines.length <= 1) {
+    return { valid: [], errorCount: 0 };
+  }
+
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+  const valid: NewSubscription[] = [];
+  let errorCount = 0;
+
+  for (const line of lines.slice(1)) {
+    const cells = parseCsvLine(line);
+    const row: Record<string, string> = {};
+    headers.forEach((header, i) => {
+      row[header] = cells[i] ?? '';
+    });
+
+    const name = row.name?.trim();
+    const amount = Number(row.amount);
+    const currency = (row.currency?.trim() || 'USD').toUpperCase();
+    const cycle = row.cycle?.trim() as BillingCycle;
+    const nextBillingDate = row.nextBillingDate?.trim();
+    const splitCount = row.splitCount?.trim() ? Math.round(Number(row.splitCount)) : 1;
+
+    const isValid =
+      !!name &&
+      Number.isFinite(amount) &&
+      amount > 0 &&
+      CURRENCY_CODE_RE.test(currency) &&
+      BILLING_CYCLES.includes(cycle) &&
+      ISO_DATE_RE.test(nextBillingDate) &&
+      Number.isFinite(splitCount) &&
+      splitCount >= 1;
+
+    if (!isValid) {
+      errorCount++;
+      continue;
+    }
+
+    valid.push({
+      name,
+      amount,
+      currency,
+      cycle,
+      nextBillingDate,
+      category: row.category?.trim() || null,
+      notes: row.notes?.trim() || null,
+      splitCount,
+    });
+  }
+
+  return { valid, errorCount };
 }
 
 export const FREE_SUBSCRIPTION_LIMIT = 5;

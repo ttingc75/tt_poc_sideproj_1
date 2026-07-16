@@ -1,6 +1,6 @@
 # SubRadar
 
-A subscription and bill tracker built with Expo (React Native + TypeScript). Free tier tracks up to 5 subscriptions; a one-time in-app purchase unlocks unlimited tracking, CSV export, and stats.
+A subscription and bill tracker built with Expo (React Native + TypeScript). Free tier tracks up to 5 subscriptions; a one-time in-app purchase unlocks unlimited tracking, CSV import/export, and spending stats.
 
 ## Stack
 
@@ -8,8 +8,20 @@ A subscription and bill tracker built with Expo (React Native + TypeScript). Fre
 - `expo-sqlite` for local storage (no backend — everything runs on-device)
 - `zustand` for app state
 - `expo-notifications` for local renewal reminders
+- `@react-native-community/datetimepicker` for the billing-date picker
+- `expo-document-picker` for CSV import
 - `react-native-iap` for the one-time pro unlock
 - `jest` + `jest-expo` for tests
+
+## Features
+
+- Add/edit/delete subscriptions with a native date picker, billing cycle, category, and notes
+- Split a subscription's cost across N people — totals and stats use your share, not the sticker price
+- Local renewal reminders (no push server involved)
+- Spending breakdown by category (Pro)
+- CSV export and import for backup/migration (Pro) — import merges into existing data, never replaces it
+- First-launch onboarding screen explaining the free/Pro split
+- Free plan caps at 5 subscriptions; a one-time IAP unlocks everything
 
 ## Getting started
 
@@ -39,10 +51,13 @@ device) — it's used to get a reproducible, containerized environment for
 typecheck/lint/test, matching what CI runs:
 
 ```bash
-docker compose run --rm test
+docker compose run --rm --build test
 ```
 
-`.github/workflows/ci.yml` runs the same command on every PR and push to `main`.
+`--build` matters: `docker compose run` reuses a previously built image if one
+already exists locally, even if the source changed, so leaving it off can silently
+test stale code. `.github/workflows/ci.yml` runs the same command (with `--build`)
+on every PR and push to `main`.
 
 ## In-app purchase setup (required before a real purchase will work)
 
@@ -72,11 +87,22 @@ npx eas build --platform ios   # requires an Apple Developer account ($99/yr)
 ## Project structure
 
 ```
-app/                  expo-router screens (dashboard, add/edit, settings)
-src/domain/           pure business logic (billing math, CSV formatting) — unit tested
+app/                  expo-router screens (onboarding, dashboard, add/edit, settings, stats)
+src/domain/           pure business logic (billing math, CSV format + parse) — unit tested
 src/db/                expo-sqlite schema + queries
 src/store/             zustand store wiring the DB, notifications, and IAP together
-src/services/          notifications, CSV export/share, in-app purchase
+src/services/          notifications, CSV export/import, in-app purchase
 src/components/        shared UI pieces
 __tests__/              Jest tests for src/domain
 ```
+
+## Before publishing to the App Store / Google Play
+
+- `PRIVACY.md` and `STORE_LISTING.md` at the repo root have draft copy — both still
+  have placeholders (contact email, hosting URL) that need filling in, and the
+  privacy policy needs to be hosted at a public URL (stores don't accept a repo
+  file link).
+- App icon source SVGs are in `assets/icon-source/` if you want to tweak the design;
+  regenerate PNGs with any SVG-to-PNG tool at the sizes already in `assets/`.
+- Screenshots for the store listings haven't been captured — see `STORE_LISTING.md`
+  for suggested shots.

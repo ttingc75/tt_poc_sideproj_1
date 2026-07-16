@@ -20,6 +20,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <Stack screenOptions={{ headerTitleAlign: 'center' }}>
         <Stack.Screen name="index" options={{ title: 'SubRadar' }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen
           name="add-subscription"
           options={{ title: 'Add Subscription', presentation: 'modal' }}

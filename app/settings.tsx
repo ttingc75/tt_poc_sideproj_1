@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { exportSubscriptionsToCSV } from '../src/services/export';
 import { purchasePro, restorePurchases } from '../src/services/iap';
+import { pickAndParseSubscriptionsCSV } from '../src/services/import';
 import { useSubscriptionStore } from '../src/store/subscriptionStore';
 
 export default function SettingsScreen() {
@@ -10,6 +11,7 @@ export default function SettingsScreen() {
   const isPro = useSubscriptionStore((s) => s.isPro);
   const setPro = useSubscriptionStore((s) => s.setPro);
   const subscriptions = useSubscriptionStore((s) => s.subscriptions);
+  const importSubscriptions = useSubscriptionStore((s) => s.importSubscriptions);
 
   async function handleUpgrade() {
     try {
@@ -43,6 +45,35 @@ export default function SettingsScreen() {
     await exportSubscriptionsToCSV(subscriptions);
   }
 
+  async function handleImport() {
+    if (!isPro) {
+      Alert.alert('Pro feature', 'CSV import is part of the paid unlock.');
+      return;
+    }
+    try {
+      const result = await pickAndParseSubscriptionsCSV();
+      if (result.status === 'cancelled') {
+        return;
+      }
+      if (result.valid.length === 0) {
+        Alert.alert('Nothing imported', 'No valid subscription rows were found in that file.');
+        return;
+      }
+      const { imported, skippedForLimit } = await importSubscriptions(result.valid);
+      const parts = [`Imported ${imported} subscription${imported === 1 ? '' : 's'}.`];
+      if (result.errorCount > 0) {
+        parts.push(`Skipped ${result.errorCount} row${result.errorCount === 1 ? '' : 's'} with invalid data.`);
+      }
+      if (skippedForLimit > 0) {
+        parts.push(`Skipped ${skippedForLimit} more due to the free plan limit.`);
+      }
+      Alert.alert('Import complete', parts.join(' '));
+    } catch (error) {
+      Alert.alert('Import failed', 'Could not read that file.');
+      console.warn(error);
+    }
+  }
+
   function handleViewStats() {
     if (!isPro) {
       Alert.alert('Pro feature', 'Spending stats are part of the paid unlock.');
@@ -57,8 +88,8 @@ export default function SettingsScreen() {
         <Text style={styles.status}>{isPro ? 'Pro unlocked' : 'Free plan'}</Text>
         <Text style={styles.statusDetail}>
           {isPro
-            ? 'Unlimited subscriptions, CSV export, and stats are unlocked.'
-            : 'Up to 5 subscriptions. Upgrade for unlimited tracking, CSV export, and stats.'}
+            ? 'Unlimited subscriptions, CSV import/export, and stats are unlocked.'
+            : 'Up to 5 subscriptions. Upgrade for unlimited tracking, CSV import/export, and stats.'}
         </Text>
       </View>
 
@@ -78,6 +109,10 @@ export default function SettingsScreen() {
 
       <Pressable style={styles.secondaryButton} onPress={handleExport}>
         <Text style={styles.secondaryButtonText}>Export CSV</Text>
+      </Pressable>
+
+      <Pressable style={styles.secondaryButton} onPress={handleImport}>
+        <Text style={styles.secondaryButtonText}>Import CSV</Text>
       </Pressable>
 
       {__DEV__ && (

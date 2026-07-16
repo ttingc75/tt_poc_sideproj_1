@@ -4,9 +4,11 @@ import {
   FREE_SUBSCRIPTION_LIMIT,
   monthlyEquivalent,
   nextOccurrence,
+  parseSubscriptionsCSV,
   sortByUpcoming,
   spendByCategory,
   toCSV,
+  toISODateString,
   totalMonthlySpend,
   totalYearlySpend,
   yearlyEquivalent,
@@ -190,6 +192,69 @@ describe('toCSV', () => {
     const csv = toCSV([makeSubscription({ amount: 20, splitCount: 4 })]);
     const lines = csv.split('\n');
     expect(lines[1]).toBe('Netflix,20,USD,monthly,2026-08-01,,,4,5');
+  });
+});
+
+describe('toISODateString', () => {
+  test('formats using local calendar fields, not UTC', () => {
+    // Regression guard: a naive toISOString().slice(0,10) call would shift this
+    // to the previous day in any timezone ahead of UTC.
+    expect(toISODateString(new Date(2026, 6, 16))).toBe('2026-07-16');
+  });
+
+  test('pads single-digit months and days', () => {
+    expect(toISODateString(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+});
+
+describe('parseSubscriptionsCSV', () => {
+  test('round-trips output from toCSV', () => {
+    const original = [
+      makeSubscription({ id: 1, name: 'Netflix', category: 'Entertainment' }),
+      makeSubscription({ id: 2, name: 'Spotify', amount: 20, splitCount: 2, notes: null }),
+    ];
+    const { valid, errorCount } = parseSubscriptionsCSV(toCSV(original));
+    expect(errorCount).toBe(0);
+    expect(valid).toHaveLength(2);
+    expect(valid[0]).toMatchObject({ name: 'Netflix', category: 'Entertainment' });
+    expect(valid[1]).toMatchObject({ name: 'Spotify', amount: 20, splitCount: 2 });
+  });
+
+  test('parses a quoted field containing a comma', () => {
+    const csv =
+      'name,amount,currency,cycle,nextBillingDate,category,notes,splitCount,yourShare\n' +
+      'Family Plan,20,USD,monthly,2026-08-01,,"shared, split with roommate",2,10';
+    const { valid, errorCount } = parseSubscriptionsCSV(csv);
+    expect(errorCount).toBe(0);
+    expect(valid[0].notes).toBe('shared, split with roommate');
+  });
+
+  test('drops rows missing required fields and counts them as errors', () => {
+    const csv =
+      'name,amount,currency,cycle,nextBillingDate,category,notes,splitCount,yourShare\n' +
+      ',10,USD,monthly,2026-08-01,,,1,10\n' +
+      'Bad Amount,not-a-number,USD,monthly,2026-08-01,,,1,10\n' +
+      'Bad Cycle,10,USD,daily,2026-08-01,,,1,10\n' +
+      'Bad Date,10,USD,monthly,08/01/2026,,,1,10\n' +
+      'Bad Currency,10,USDT,monthly,2026-08-01,,,1,10';
+    const { valid, errorCount } = parseSubscriptionsCSV(csv);
+    expect(valid).toHaveLength(0);
+    expect(errorCount).toBe(5);
+  });
+
+  test('defaults splitCount to 1 when the column is missing', () => {
+    const csv =
+      'name,amount,currency,cycle,nextBillingDate\nNetflix,15,USD,monthly,2026-08-01';
+    const { valid } = parseSubscriptionsCSV(csv);
+    expect(valid[0].splitCount).toBe(1);
+  });
+
+  test('returns nothing for an empty or header-only CSV', () => {
+    expect(parseSubscriptionsCSV('')).toEqual({ valid: [], errorCount: 0 });
+    expect(parseSubscriptionsCSV('name,amount,currency,cycle,nextBillingDate')).toEqual({
+      valid: [],
+      errorCount: 0,
+    });
   });
 });
 
