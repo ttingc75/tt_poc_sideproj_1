@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { exportSubscriptionsToCSV } from '../src/services/export';
@@ -5,6 +6,7 @@ import { purchasePro, restorePurchases } from '../src/services/iap';
 import { useSubscriptionStore } from '../src/store/subscriptionStore';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const isPro = useSubscriptionStore((s) => s.isPro);
   const setPro = useSubscriptionStore((s) => s.setPro);
   const subscriptions = useSubscriptionStore((s) => s.subscriptions);
@@ -41,6 +43,14 @@ export default function SettingsScreen() {
     await exportSubscriptionsToCSV(subscriptions);
   }
 
+  function handleViewStats() {
+    if (!isPro) {
+      Alert.alert('Pro feature', 'Spending stats are part of the paid unlock.');
+      return;
+    }
+    router.push('/stats');
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
@@ -60,6 +70,10 @@ export default function SettingsScreen() {
 
       <Pressable style={styles.secondaryButton} onPress={handleRestore}>
         <Text style={styles.secondaryButtonText}>Restore purchases</Text>
+      </Pressable>
+
+      <Pressable style={styles.secondaryButton} onPress={handleViewStats}>
+        <Text style={styles.secondaryButtonText}>View spending stats</Text>
       </Pressable>
 
       <Pressable style={styles.secondaryButton} onPress={handleExport}>

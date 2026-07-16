@@ -26,6 +26,7 @@ export default function RootLayout() {
         />
         <Stack.Screen name="subscription/[id]" options={{ title: 'Subscription' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="stats" options={{ title: 'Spending Stats' }} />
       </Stack>
     </SafeAreaProvider>
   );

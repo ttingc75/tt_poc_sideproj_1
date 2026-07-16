@@ -46,6 +46,26 @@ export function totalYearlySpend(subscriptions: Subscription[]): number {
   return subscriptions.reduce((sum, s) => sum + yearlyEquivalent(yourShare(s), s.cycle), 0);
 }
 
+const UNCATEGORIZED = 'Uncategorized';
+
+export interface CategorySpend {
+  category: string;
+  monthlyTotal: number;
+}
+
+/** Groups subscriptions by category and sums their monthly-equivalent cost (your share), descending. */
+export function spendByCategory(subscriptions: Subscription[]): CategorySpend[] {
+  const totals = new Map<string, number>();
+  for (const s of subscriptions) {
+    const category = s.category?.trim() || UNCATEGORIZED;
+    const monthly = monthlyEquivalent(yourShare(s), s.cycle);
+    totals.set(category, (totals.get(category) ?? 0) + monthly);
+  }
+  return [...totals.entries()]
+    .map(([category, monthlyTotal]) => ({ category, monthlyTotal }))
+    .sort((a, b) => b.monthlyTotal - a.monthlyTotal);
+}
+
 /** Whole days between today and an ISO date string; negative if the date is in the past. */
 export function daysUntil(isoDate: string, now: Date = new Date()): number {
   const target = new Date(`${isoDate}T00:00:00`);

@@ -5,6 +5,7 @@ import {
   monthlyEquivalent,
   nextOccurrence,
   sortByUpcoming,
+  spendByCategory,
   toCSV,
   totalMonthlySpend,
   totalYearlySpend,
@@ -72,6 +73,39 @@ describe('totals', () => {
   test('only counts the user share of split subscriptions', () => {
     const subs = [makeSubscription({ amount: 20, cycle: 'monthly', splitCount: 4 })];
     expect(totalMonthlySpend(subs)).toBeCloseTo(5, 5);
+  });
+});
+
+describe('spendByCategory', () => {
+  test('groups and sums monthly-equivalent spend per category, descending', () => {
+    const subs = [
+      makeSubscription({ id: 1, category: 'Entertainment', amount: 10, cycle: 'monthly' }),
+      makeSubscription({ id: 2, category: 'Entertainment', amount: 5, cycle: 'monthly' }),
+      makeSubscription({ id: 3, category: 'Productivity', amount: 120, cycle: 'yearly' }),
+    ];
+    const result = spendByCategory(subs);
+    expect(result[0]).toMatchObject({ category: 'Entertainment', monthlyTotal: 15 });
+    expect(result[1].category).toBe('Productivity');
+    expect(result[1].monthlyTotal).toBeCloseTo(10, 0);
+  });
+
+  test('groups null or blank categories under Uncategorized', () => {
+    const subs = [
+      makeSubscription({ id: 1, category: null }),
+      makeSubscription({ id: 2, category: '  ' }),
+    ];
+    const result = spendByCategory(subs);
+    expect(result).toHaveLength(1);
+    expect(result[0].category).toBe('Uncategorized');
+  });
+
+  test('accounts for split subscriptions using the user share', () => {
+    const subs = [makeSubscription({ category: 'Streaming', amount: 20, splitCount: 4 })];
+    expect(spendByCategory(subs)[0].monthlyTotal).toBeCloseTo(5, 5);
+  });
+
+  test('returns an empty array for no subscriptions', () => {
+    expect(spendByCategory([])).toEqual([]);
   });
 });
 
