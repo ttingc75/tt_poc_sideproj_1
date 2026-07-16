@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-import type { NewSubscription, Subscription } from '../domain/subscription';
+import { monthlyEquivalent, yourShare, type NewSubscription, type Subscription, type SpendEvent } from '../domain/subscription';
 
 const DB_NAME = 'subradar.db';
 
@@ -27,16 +27,44 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS spend_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          subscriptionName TEXT NOT NULL,
+          monthlyDelta REAL NOT NULL,
+          occurredAt TEXT NOT NULL
+        );
       `);
       try {
         await db.execAsync('ALTER TABLE subscriptions ADD COLUMN splitCount INTEGER NOT NULL DEFAULT 1');
       } catch {
         // column already exists
       }
+      await backfillSpendEventsIfEmpty(db);
       return db;
     });
   }
   return dbPromise;
+}
+
+/** One-time seed: if spend_events is empty but subscriptions already exist (e.g. from before this
+ * table existed), record one synthetic "added" event per subscription so the trend chart isn't
+ * empty for existing users. No-ops on every call after the first, since events accumulate from then on. */
+async function backfillSpendEventsIfEmpty(db: SQLite.SQLiteDatabase): Promise<void> {
+  const eventCount = await db.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM spend_events'
+  );
+  if ((eventCount?.count ?? 0) > 0) {
+    return;
+  }
+  const subscriptions = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions');
+  for (const s of subscriptions) {
+    await db.runAsync(
+      'INSERT INTO spend_events (subscriptionName, monthlyDelta, occurredAt) VALUES (?, ?, ?)',
+      s.name,
+      monthlyEquivalent(yourShare(s), s.cycle),
+      s.createdAt
+    );
+  }
 }
 
 export async function listSubscriptions(): Promise<Subscription[]> {
@@ -93,6 +121,21 @@ export async function updateSubscription(id: number, input: NewSubscription): Pr
 export async function deleteSubscription(id: number): Promise<void> {
   const db = await getDb();
   await db.runAsync('DELETE FROM subscriptions WHERE id = ?', id);
+}
+
+export async function insertSpendEvent(subscriptionName: string, monthlyDelta: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'INSERT INTO spend_events (subscriptionName, monthlyDelta, occurredAt) VALUES (?, ?, ?)',
+    subscriptionName,
+    monthlyDelta,
+    new Date().toISOString()
+  );
+}
+
+export async function listSpendEvents(): Promise<SpendEvent[]> {
+  const db = await getDb();
+  return db.getAllAsync<SpendEvent>('SELECT * FROM spend_events ORDER BY occurredAt ASC');
 }
 
 export async function getSetting(key: string): Promise<string | null> {

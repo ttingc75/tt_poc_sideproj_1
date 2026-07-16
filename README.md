@@ -2,6 +2,8 @@
 
 A subscription and bill tracker built with Expo (React Native + TypeScript). Free tier tracks up to 5 subscriptions; a one-time in-app purchase unlocks unlimited tracking, CSV import/export, and spending stats.
 
+Full docs: [`docs/PRODUCT_FEATURES.md`](docs/PRODUCT_FEATURES.md) (what it does and why) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (how it's built, layering, environment quirks).
+
 ## Stack
 
 - Expo SDK 57, TypeScript, `expo-router`

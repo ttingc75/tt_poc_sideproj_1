@@ -51,19 +51,99 @@ const UNCATEGORIZED = 'Uncategorized';
 export interface CategorySpend {
   category: string;
   monthlyTotal: number;
+  /** Share of total monthly spend across all categories, 0-100. 0 if there is no spend at all. */
+  percentage: number;
+  subscriptionCount: number;
 }
 
 /** Groups subscriptions by category and sums their monthly-equivalent cost (your share), descending. */
 export function spendByCategory(subscriptions: Subscription[]): CategorySpend[] {
-  const totals = new Map<string, number>();
+  const totals = new Map<string, { monthlyTotal: number; subscriptionCount: number }>();
   for (const s of subscriptions) {
     const category = s.category?.trim() || UNCATEGORIZED;
     const monthly = monthlyEquivalent(yourShare(s), s.cycle);
-    totals.set(category, (totals.get(category) ?? 0) + monthly);
+    const existing = totals.get(category) ?? { monthlyTotal: 0, subscriptionCount: 0 };
+    totals.set(category, {
+      monthlyTotal: existing.monthlyTotal + monthly,
+      subscriptionCount: existing.subscriptionCount + 1,
+    });
   }
+  const grandTotal = [...totals.values()].reduce((sum, t) => sum + t.monthlyTotal, 0);
   return [...totals.entries()]
-    .map(([category, monthlyTotal]) => ({ category, monthlyTotal }))
+    .map(([category, { monthlyTotal, subscriptionCount }]) => ({
+      category,
+      monthlyTotal,
+      percentage: grandTotal > 0 ? (monthlyTotal / grandTotal) * 100 : 0,
+      subscriptionCount,
+    }))
     .sort((a, b) => b.monthlyTotal - a.monthlyTotal);
+}
+
+export interface RankedSubscription {
+  subscription: Subscription;
+  monthlySpend: number;
+}
+
+/** The N subscriptions costing the most per month (your share), descending. */
+export function topSpendingSubscriptions(
+  subscriptions: Subscription[],
+  limit: number
+): RankedSubscription[] {
+  return subscriptions
+    .map((subscription) => ({
+      subscription,
+      monthlySpend: monthlyEquivalent(yourShare(subscription), subscription.cycle),
+    }))
+    .sort((a, b) => b.monthlySpend - a.monthlySpend)
+    .slice(0, limit);
+}
+
+export interface SpendEvent {
+  id: number;
+  subscriptionName: string;
+  /** Change in total monthly-equivalent spend caused by this event (positive for add/increase, negative for remove/decrease). */
+  monthlyDelta: number;
+  occurredAt: string; // ISO datetime
+}
+
+export interface MonthlySpendPoint {
+  /** "YYYY-MM" */
+  month: string;
+  totalMonthlySpend: number;
+}
+
+/**
+ * Replays spend events into a running monthly-spend total for each of the last `monthsBack`
+ * months (including the current month). Each point is the cumulative total as of the end of
+ * that month, so it reflects subscriptions added/edited/removed up to that point in time.
+ */
+export function buildMonthlySpendTrend(
+  events: SpendEvent[],
+  monthsBack: number,
+  now: Date = new Date()
+): MonthlySpendPoint[] {
+  const sorted = [...events].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  const points: MonthlySpendPoint[] = [];
+
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const bucketDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const endOfMonth = new Date(
+      bucketDate.getFullYear(),
+      bucketDate.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+    const total = sorted
+      .filter((event) => new Date(event.occurredAt).getTime() <= endOfMonth.getTime())
+      .reduce((sum, event) => sum + event.monthlyDelta, 0);
+    const month = `${bucketDate.getFullYear()}-${String(bucketDate.getMonth() + 1).padStart(2, '0')}`;
+    points.push({ month, totalMonthlySpend: Math.max(0, total) });
+  }
+
+  return points;
 }
 
 /** Formats a Date using its local calendar day (not UTC), matching the "YYYY-MM-DD" storage format. */

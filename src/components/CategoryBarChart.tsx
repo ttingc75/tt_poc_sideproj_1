@@ -22,7 +22,14 @@ export function CategoryBarChart({ data }: Props) {
       {data.map((d) => (
         <View key={d.category} style={styles.row}>
           <View style={styles.labelRow}>
-            <Text style={styles.category}>{d.category}</Text>
+            <Text style={styles.category}>
+              {d.category}
+              <Text style={styles.subLabel}>
+                {'  '}
+                {d.subscriptionCount} sub{d.subscriptionCount === 1 ? '' : 's'} ·{' '}
+                {d.percentage.toFixed(0)}%
+              </Text>
+            </Text>
             <Text style={styles.amount}>{d.monthlyTotal.toFixed(2)}/mo</Text>
           </View>
           <View style={styles.track}>
@@ -52,6 +59,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
+  },
+  subLabel: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#9CA3AF',
   },
   amount: {
     fontSize: 14,

@@ -1,4 +1,5 @@
 import {
+  buildMonthlySpendTrend,
   canAddSubscription,
   daysUntil,
   FREE_SUBSCRIPTION_LIMIT,
@@ -9,11 +10,13 @@ import {
   spendByCategory,
   toCSV,
   toISODateString,
+  topSpendingSubscriptions,
   totalMonthlySpend,
   totalYearlySpend,
   validateSubscriptionDraft,
   yearlyEquivalent,
   yourShare,
+  type SpendEvent,
   type Subscription,
 } from '../src/domain/subscription';
 
@@ -109,6 +112,88 @@ describe('spendByCategory', () => {
 
   test('returns an empty array for no subscriptions', () => {
     expect(spendByCategory([])).toEqual([]);
+  });
+
+  test('computes each category\'s share of total spend and how many subscriptions it has', () => {
+    const subs = [
+      makeSubscription({ id: 1, category: 'Entertainment', amount: 15, cycle: 'monthly' }),
+      makeSubscription({ id: 2, category: 'Entertainment', amount: 15, cycle: 'monthly' }),
+      makeSubscription({ id: 3, category: 'Productivity', amount: 10, cycle: 'monthly' }),
+    ];
+    const result = spendByCategory(subs);
+    expect(result[0]).toMatchObject({ category: 'Entertainment', subscriptionCount: 2 });
+    expect(result[0].percentage).toBeCloseTo(75, 0);
+    expect(result[1]).toMatchObject({ category: 'Productivity', subscriptionCount: 1 });
+    expect(result[1].percentage).toBeCloseTo(25, 0);
+  });
+});
+
+describe('topSpendingSubscriptions', () => {
+  test('ranks subscriptions by monthly-equivalent spend, descending', () => {
+    // Monthly-equivalent: Cheap ≈ 5/mo, Mid = 20/mo, Expensive (120/yr) ≈ 10/mo.
+    const subs = [
+      makeSubscription({ id: 1, name: 'Cheap', amount: 5, cycle: 'monthly' }),
+      makeSubscription({ id: 2, name: 'Expensive', amount: 120, cycle: 'yearly' }),
+      makeSubscription({ id: 3, name: 'Mid', amount: 20, cycle: 'monthly' }),
+    ];
+    const result = topSpendingSubscriptions(subs, 2);
+    expect(result).toHaveLength(2);
+    expect(result[0].subscription.name).toBe('Mid');
+    expect(result[1].subscription.name).toBe('Expensive');
+  });
+
+  test('uses the user share for split subscriptions', () => {
+    const subs = [makeSubscription({ amount: 40, cycle: 'monthly', splitCount: 4 })];
+    expect(topSpendingSubscriptions(subs, 1)[0].monthlySpend).toBeCloseTo(10, 5);
+  });
+
+  test('returns an empty array for no subscriptions', () => {
+    expect(topSpendingSubscriptions([], 5)).toEqual([]);
+  });
+});
+
+describe('buildMonthlySpendTrend', () => {
+  function makeEvent(overrides: Partial<SpendEvent> = {}): SpendEvent {
+    return { id: 1, subscriptionName: 'Netflix', monthlyDelta: 10, occurredAt: '2026-05-01T00:00:00.000Z', ...overrides };
+  }
+
+  const now = new Date('2026-07-16T12:00:00');
+
+  test('produces one point per requested month, oldest first', () => {
+    const points = buildMonthlySpendTrend([], 3, now);
+    expect(points.map((p) => p.month)).toEqual(['2026-05', '2026-06', '2026-07']);
+  });
+
+  test('accumulates deltas that occurred on or before the end of each month', () => {
+    const events = [
+      makeEvent({ id: 1, monthlyDelta: 10, occurredAt: '2026-05-10T00:00:00.000Z' }),
+      makeEvent({ id: 2, monthlyDelta: 5, occurredAt: '2026-06-20T00:00:00.000Z' }),
+    ];
+    const points = buildMonthlySpendTrend(events, 3, now);
+    expect(points.find((p) => p.month === '2026-05')?.totalMonthlySpend).toBe(10);
+    expect(points.find((p) => p.month === '2026-06')?.totalMonthlySpend).toBe(15);
+    expect(points.find((p) => p.month === '2026-07')?.totalMonthlySpend).toBe(15);
+  });
+
+  test('reflects a removal as a negative delta reducing the running total', () => {
+    const events = [
+      makeEvent({ id: 1, monthlyDelta: 10, occurredAt: '2026-05-01T00:00:00.000Z' }),
+      makeEvent({ id: 2, monthlyDelta: -10, occurredAt: '2026-06-01T00:00:00.000Z' }),
+    ];
+    const points = buildMonthlySpendTrend(events, 3, now);
+    expect(points.find((p) => p.month === '2026-07')?.totalMonthlySpend).toBe(0);
+  });
+
+  test('never returns a negative total even if events would sum below zero', () => {
+    const events = [makeEvent({ monthlyDelta: -10, occurredAt: '2026-05-01T00:00:00.000Z' })];
+    const points = buildMonthlySpendTrend(events, 1, now);
+    expect(points[0].totalMonthlySpend).toBe(0);
+  });
+
+  test('ignores events that occur after the requested window', () => {
+    const events = [makeEvent({ monthlyDelta: 10, occurredAt: '2026-08-01T00:00:00.000Z' })];
+    const points = buildMonthlySpendTrend(events, 1, now);
+    expect(points[0].totalMonthlySpend).toBe(0);
   });
 });
 
