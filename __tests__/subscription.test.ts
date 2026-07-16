@@ -11,6 +11,7 @@ import {
   toISODateString,
   totalMonthlySpend,
   totalYearlySpend,
+  validateSubscriptionDraft,
   yearlyEquivalent,
   yourShare,
   type Subscription,
@@ -204,6 +205,47 @@ describe('toISODateString', () => {
 
   test('pads single-digit months and days', () => {
     expect(toISODateString(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+});
+
+describe('validateSubscriptionDraft', () => {
+  const validDraft = {
+    name: 'Netflix',
+    amount: 15,
+    currency: 'USD',
+    cycle: 'monthly',
+    nextBillingDate: '2026-08-01',
+    splitCount: 1,
+  };
+
+  test('returns null for a valid draft', () => {
+    expect(validateSubscriptionDraft(validDraft)).toBeNull();
+  });
+
+  test('rejects a blank name', () => {
+    expect(validateSubscriptionDraft({ ...validDraft, name: '  ' })).toMatch(/name/i);
+  });
+
+  test('rejects a non-positive amount', () => {
+    expect(validateSubscriptionDraft({ ...validDraft, amount: 0 })).toMatch(/amount/i);
+  });
+
+  test('rejects a malformed currency code', () => {
+    expect(validateSubscriptionDraft({ ...validDraft, currency: 'US' })).toMatch(/currency/i);
+  });
+
+  test('rejects a cycle outside weekly/monthly/yearly', () => {
+    expect(validateSubscriptionDraft({ ...validDraft, cycle: 'daily' })).toMatch(/cycle/i);
+  });
+
+  test('rejects a non-ISO date', () => {
+    expect(validateSubscriptionDraft({ ...validDraft, nextBillingDate: '08/01/2026' })).toMatch(
+      /date/i
+    );
+  });
+
+  test('rejects a split count below 1', () => {
+    expect(validateSubscriptionDraft({ ...validDraft, splitCount: 0 })).toMatch(/split/i);
   });
 });
 

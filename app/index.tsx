@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SubscriptionCard } from '../src/components/SubscriptionCard';
 import { SummaryHeader } from '../src/components/SummaryHeader';
-import { totalMonthlySpend, totalYearlySpend } from '../src/domain/subscription';
+import { FREE_SUBSCRIPTION_LIMIT, totalMonthlySpend, totalYearlySpend } from '../src/domain/subscription';
 import { useSubscriptionStore } from '../src/store/subscriptionStore';
 
 export default function Dashboard() {
@@ -53,7 +53,7 @@ export default function Dashboard() {
 
       <Pressable style={styles.addButton} onPress={() => router.push('/add-subscription')}>
         <Text style={styles.addButtonText}>
-          + Add subscription{!isPro ? ` (${subscriptions.length}/5 free)` : ''}
+          {`+ Add subscription${!isPro ? ` (${subscriptions.length}/${FREE_SUBSCRIPTION_LIMIT} free)` : ''}`}
         </Text>
       </Pressable>
     </View>

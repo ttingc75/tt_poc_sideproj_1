@@ -133,6 +133,42 @@ export const BILLING_CYCLES: BillingCycle[] = ['weekly', 'monthly', 'yearly'];
 export const CURRENCY_CODE_RE = /^[A-Za-z]{3}$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+export interface SubscriptionDraftFields {
+  name: string;
+  amount: number;
+  currency: string;
+  cycle: string;
+  nextBillingDate: string;
+  splitCount: number;
+}
+
+/**
+ * Validates the fields shared by manual entry (SubscriptionForm) and CSV import
+ * (parseSubscriptionsCSV), so the two stay in sync as a single source of truth.
+ * Returns the first error message, or null if the draft is valid.
+ */
+export function validateSubscriptionDraft(draft: SubscriptionDraftFields): string | null {
+  if (!draft.name.trim()) {
+    return 'Name is required.';
+  }
+  if (!Number.isFinite(draft.amount) || draft.amount <= 0) {
+    return 'Amount must be a positive number.';
+  }
+  if (!CURRENCY_CODE_RE.test(draft.currency)) {
+    return 'Currency must be a 3-letter code, e.g. USD.';
+  }
+  if (!BILLING_CYCLES.includes(draft.cycle as BillingCycle)) {
+    return 'Billing cycle must be weekly, monthly, or yearly.';
+  }
+  if (!ISO_DATE_RE.test(draft.nextBillingDate)) {
+    return 'Next billing date must be in YYYY-MM-DD format.';
+  }
+  if (!Number.isFinite(draft.splitCount) || draft.splitCount < 1) {
+    return 'Split with must be 1 or more.';
+  }
+  return null;
+}
+
 /** Splits a single CSV line into fields, honoring double-quoted fields with escaped `""`. Does not support fields with embedded newlines. */
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -187,24 +223,14 @@ export function parseSubscriptionsCSV(csvText: string): ParsedSubscriptionsCSV {
       row[header] = cells[i] ?? '';
     });
 
-    const name = row.name?.trim();
+    const name = row.name?.trim() ?? '';
     const amount = Number(row.amount);
     const currency = (row.currency?.trim() || 'USD').toUpperCase();
-    const cycle = row.cycle?.trim() as BillingCycle;
-    const nextBillingDate = row.nextBillingDate?.trim();
+    const cycle = (row.cycle?.trim() ?? '') as BillingCycle;
+    const nextBillingDate = row.nextBillingDate?.trim() ?? '';
     const splitCount = row.splitCount?.trim() ? Math.round(Number(row.splitCount)) : 1;
 
-    const isValid =
-      !!name &&
-      Number.isFinite(amount) &&
-      amount > 0 &&
-      CURRENCY_CODE_RE.test(currency) &&
-      BILLING_CYCLES.includes(cycle) &&
-      ISO_DATE_RE.test(nextBillingDate) &&
-      Number.isFinite(splitCount) &&
-      splitCount >= 1;
-
-    if (!isValid) {
+    if (validateSubscriptionDraft({ name, amount, currency, cycle, nextBillingDate, splitCount })) {
       errorCount++;
       continue;
     }

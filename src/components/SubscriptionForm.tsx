@@ -4,8 +4,8 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 
 import {
   BILLING_CYCLES,
-  CURRENCY_CODE_RE,
   toISODateString,
+  validateSubscriptionDraft,
   type BillingCycle,
   type NewSubscription,
 } from '../domain/subscription';
@@ -33,40 +33,31 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
   const [error, setError] = useState<string | null>(null);
 
   function handleSubmit() {
-    const parsedAmount = Number(amount);
-    const parsedSplitCount = Math.round(Number(splitCount));
-    const trimmedCurrency = currency.trim().toUpperCase() || 'USD';
-
-    if (!name.trim()) {
-      setError('Name is required.');
-      return;
-    }
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError('Amount must be a positive number.');
-      return;
-    }
-    if (!CURRENCY_CODE_RE.test(trimmedCurrency)) {
-      setError('Currency must be a 3-letter code, e.g. USD.');
-      return;
-    }
     if (!nextBillingDate) {
       setError('Pick a next billing date.');
       return;
     }
-    if (!Number.isFinite(parsedSplitCount) || parsedSplitCount < 1) {
-      setError('Split with must be 1 or more.');
-      return;
-    }
-    setError(null);
-    onSubmit({
+
+    const draft = {
       name: name.trim(),
-      amount: parsedAmount,
-      currency: trimmedCurrency,
+      amount: Number(amount),
+      currency: currency.trim().toUpperCase() || 'USD',
       cycle,
       nextBillingDate: toISODateString(nextBillingDate),
+      splitCount: Math.round(Number(splitCount)),
+    };
+
+    const validationError = validateSubscriptionDraft(draft);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError(null);
+    onSubmit({
+      ...draft,
       category: category.trim() || null,
       notes: notes.trim() || null,
-      splitCount: parsedSplitCount,
     });
   }
 
