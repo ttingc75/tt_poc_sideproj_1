@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { daysUntil, type Subscription } from '../domain/subscription';
+import { daysUntil, yourShare, type Subscription } from '../domain/subscription';
 
 interface Props {
   subscription: Subscription;
@@ -17,17 +17,29 @@ function dueLabel(days: number): string {
 export function SubscriptionCard({ subscription, onPress }: Props) {
   const days = daysUntil(subscription.nextBillingDate);
   const urgent = days <= 3;
+  const isShared = subscription.splitCount > 1;
 
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.left}>
         <Text style={styles.name}>{subscription.name}</Text>
         <Text style={[styles.due, urgent && styles.dueUrgent]}>{dueLabel(days)}</Text>
+        {isShared && (
+          <Text style={styles.shared}>split {subscription.splitCount} ways</Text>
+        )}
       </View>
-      <Text style={styles.amount}>
-        {subscription.amount} {subscription.currency}
-        <Text style={styles.cycle}> / {subscription.cycle}</Text>
-      </Text>
+      <View style={styles.right}>
+        <Text style={styles.amount}>
+          {isShared ? yourShare(subscription).toFixed(2) : subscription.amount}{' '}
+          {subscription.currency}
+          <Text style={styles.cycle}> / {subscription.cycle}</Text>
+        </Text>
+        {isShared && (
+          <Text style={styles.fullAmount}>
+            {subscription.amount} {subscription.currency} total
+          </Text>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -60,6 +72,14 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontWeight: '600',
   },
+  shared: {
+    fontSize: 12,
+    color: '#2563EB',
+    marginTop: 2,
+  },
+  right: {
+    alignItems: 'flex-end',
+  },
   amount: {
     fontSize: 15,
     fontWeight: '600',
@@ -69,5 +89,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     color: '#9CA3AF',
+  },
+  fullAmount: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
 });

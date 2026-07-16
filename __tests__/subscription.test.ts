@@ -9,6 +9,7 @@ import {
   totalMonthlySpend,
   totalYearlySpend,
   yearlyEquivalent,
+  yourShare,
   type Subscription,
 } from '../src/domain/subscription';
 
@@ -22,6 +23,7 @@ function makeSubscription(overrides: Partial<Subscription> = {}): Subscription {
     nextBillingDate: '2026-08-01',
     category: null,
     notes: null,
+    splitCount: 1,
     createdAt: '2026-07-01T00:00:00.000Z',
     ...overrides,
   };
@@ -65,6 +67,25 @@ describe('totals', () => {
   test('empty list totals to zero', () => {
     expect(totalMonthlySpend([])).toBe(0);
     expect(totalYearlySpend([])).toBe(0);
+  });
+
+  test('only counts the user share of split subscriptions', () => {
+    const subs = [makeSubscription({ amount: 20, cycle: 'monthly', splitCount: 4 })];
+    expect(totalMonthlySpend(subs)).toBeCloseTo(5, 5);
+  });
+});
+
+describe('yourShare', () => {
+  test('returns the full amount when not split', () => {
+    expect(yourShare({ amount: 15, splitCount: 1 })).toBe(15);
+  });
+
+  test('divides the amount evenly across the split count', () => {
+    expect(yourShare({ amount: 20, splitCount: 4 })).toBe(5);
+  });
+
+  test('treats a split count below 1 as 1', () => {
+    expect(yourShare({ amount: 15, splitCount: 0 })).toBe(15);
   });
 });
 
@@ -120,13 +141,21 @@ describe('toCSV', () => {
   test('produces a header row plus one row per subscription', () => {
     const csv = toCSV([makeSubscription()]);
     const lines = csv.split('\n');
-    expect(lines[0]).toBe('name,amount,currency,cycle,nextBillingDate,category,notes');
-    expect(lines[1]).toBe('Netflix,15,USD,monthly,2026-08-01,,');
+    expect(lines[0]).toBe(
+      'name,amount,currency,cycle,nextBillingDate,category,notes,splitCount,yourShare'
+    );
+    expect(lines[1]).toBe('Netflix,15,USD,monthly,2026-08-01,,,1,15');
   });
 
   test('quotes fields containing commas', () => {
     const csv = toCSV([makeSubscription({ notes: 'shared, split with roommate' })]);
     expect(csv).toContain('"shared, split with roommate"');
+  });
+
+  test('includes the computed per-person share for split subscriptions', () => {
+    const csv = toCSV([makeSubscription({ amount: 20, splitCount: 4 })]);
+    const lines = csv.split('\n');
+    expect(lines[1]).toBe('Netflix,20,USD,monthly,2026-08-01,,,4,5');
   });
 });
 

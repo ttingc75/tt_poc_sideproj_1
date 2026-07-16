@@ -20,10 +20,14 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
   const [nextBillingDate, setNextBillingDate] = useState(initialValue?.nextBillingDate ?? '');
   const [category, setCategory] = useState(initialValue?.category ?? '');
   const [notes, setNotes] = useState(initialValue?.notes ?? '');
+  const [splitCount, setSplitCount] = useState(
+    initialValue ? String(initialValue.splitCount) : '1'
+  );
   const [error, setError] = useState<string | null>(null);
 
   function handleSubmit() {
     const parsedAmount = Number(amount);
+    const parsedSplitCount = Math.round(Number(splitCount));
     if (!name.trim()) {
       setError('Name is required.');
       return;
@@ -36,6 +40,10 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
       setError('Next billing date must be in YYYY-MM-DD format.');
       return;
     }
+    if (!Number.isFinite(parsedSplitCount) || parsedSplitCount < 1) {
+      setError('Split with must be 1 or more.');
+      return;
+    }
     setError(null);
     onSubmit({
       name: name.trim(),
@@ -45,6 +53,7 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
       nextBillingDate,
       category: category.trim() || null,
       notes: notes.trim() || null,
+      splitCount: parsedSplitCount,
     });
   }
 
@@ -97,6 +106,15 @@ export function SubscriptionForm({ initialValue, submitLabel, onSubmit }: Props)
         value={nextBillingDate}
         onChangeText={setNextBillingDate}
         placeholder="2026-08-01"
+      />
+
+      <Text style={styles.label}>Split with (people, including you)</Text>
+      <TextInput
+        style={styles.input}
+        value={splitCount}
+        onChangeText={setSplitCount}
+        placeholder="1"
+        keyboardType="number-pad"
       />
 
       <Text style={styles.label}>Category (optional)</Text>

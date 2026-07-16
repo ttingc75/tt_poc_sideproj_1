@@ -20,6 +20,7 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           nextBillingDate TEXT NOT NULL,
           category TEXT,
           notes TEXT,
+          splitCount INTEGER NOT NULL DEFAULT 1,
           createdAt TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS settings (
@@ -27,6 +28,11 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           value TEXT NOT NULL
         );
       `);
+      try {
+        await db.execAsync('ALTER TABLE subscriptions ADD COLUMN splitCount INTEGER NOT NULL DEFAULT 1');
+      } catch {
+        // column already exists
+      }
       return db;
     });
   }
@@ -51,8 +57,8 @@ export async function insertSubscription(input: NewSubscription): Promise<number
   const db = await getDb();
   const createdAt = new Date().toISOString();
   const result = await db.runAsync(
-    `INSERT INTO subscriptions (name, amount, currency, cycle, nextBillingDate, category, notes, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO subscriptions (name, amount, currency, cycle, nextBillingDate, category, notes, splitCount, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.name,
     input.amount,
     input.currency,
@@ -60,6 +66,7 @@ export async function insertSubscription(input: NewSubscription): Promise<number
     input.nextBillingDate,
     input.category,
     input.notes,
+    input.splitCount,
     createdAt
   );
   return result.lastInsertRowId;
@@ -69,7 +76,7 @@ export async function updateSubscription(id: number, input: NewSubscription): Pr
   const db = await getDb();
   await db.runAsync(
     `UPDATE subscriptions
-     SET name = ?, amount = ?, currency = ?, cycle = ?, nextBillingDate = ?, category = ?, notes = ?
+     SET name = ?, amount = ?, currency = ?, cycle = ?, nextBillingDate = ?, category = ?, notes = ?, splitCount = ?
      WHERE id = ?`,
     input.name,
     input.amount,
@@ -78,6 +85,7 @@ export async function updateSubscription(id: number, input: NewSubscription): Pr
     input.nextBillingDate,
     input.category,
     input.notes,
+    input.splitCount,
     id
   );
 }
